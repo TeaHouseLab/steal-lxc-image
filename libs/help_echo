@@ -1,0 +1,12 @@
+function help_echo
+ echo '
+(./)app [steal, *]
+    steal: Quickly grab all stuff from lxc image
+    *: Show help msg
+
+Args
+(./)app [-l/logger=, -m/mirror=]
+    -l/--logger=: Logger level, available:{info,debug}
+    -m/--mirror=: Lxc mirror site
+        Example: ./app -m "https://mirrors.bfsu.edu.cn" steal'
+end

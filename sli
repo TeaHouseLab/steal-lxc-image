@@ -1,0 +1,123 @@
+#!/usr/bin/env fish
+
+function help_echo
+ echo '
+(./)app [steal, *]
+    steal: Quickly grab all stuff from lxc image
+    *: Show help msg
+
+Args
+(./)app [-l/logger=, -m/mirror=]
+    -l/--logger=: Logger level, available:{info,debug}
+    -m/--mirror=: Lxc mirror site
+        Example: ./app -m "https://mirrors.bfsu.edu.cn" steal'
+end
+
+function logger-warn
+  set_color magenta
+  echo "$prefix ! $argv[1..-1]"
+  set_color normal
+end
+function logger-error
+  set_color red
+  echo "$prefix x $argv[1..-1]"
+  set_color normal
+end
+function logger-info-start
+  set_color normal
+  echo "$prefix + $argv[1..-1]"
+  set_color normal
+end
+function logger-info-end
+  set_color normal
+  echo "$prefix - $argv[1..-1]"
+  set_color normal
+end
+function logger-debug
+  set_color yellow
+  echo "$prefix ? $argv[1..-1]"
+  set_color normal
+end
+function logger-success
+  set_color green
+  echo "$prefix √ $argv[1..-1]"
+  set_color normal
+end
+function logger -d "a lib to print msg quickly"
+switch $argv[1]
+case 0
+  logger-info-start $argv[2..-1]
+case 1
+  logger-info-end $argv[2..-1]
+case 2
+  logger-success $argv[2..-1]
+case 3
+  logger-debug $argv[2..-1]
+case 4
+  logger-warn $argv[2..-1]
+case 5
+  logger-error $argv[2..-1]
+end
+end
+
+function steal
+    init
+    set image (curl -sL $mirror/lxc-images/streams/v1/images.json | jq -r '.products')
+    rm built/*
+    for target in (echo $image | jq -r 'keys|.[]')
+        if test $logger = "debug"
+            logger 3 "target -> $target"
+        end
+        set os (echo $image | jq -r ".[\"$target\"].os" | tr '[:upper:]' '[:lower:]')
+        if test $logger = "debug"
+            logger 3 "os -> $os"
+        end
+        set release (echo $image | jq -r ".[\"$target\"].release" | tr '[:upper:]' '[:lower:]')
+        if test $logger = "debug"
+            logger 3 "release -> $release"
+        end
+        set arch (echo $image | jq -r ".[\"$target\"].arch" | tr '[:upper:]' '[:lower:]')
+        if test $logger = "debug"
+            logger 3 "arch -> $arch"
+        end
+        set variant (echo $image | jq -r ".[\"$target\"].variant" | tr '[:upper:]' '[:lower:]')
+        if test $logger = "debug"
+            logger 3 "variant -> $variant"
+        end
+        set latest (echo $image | jq -r ".[\"$target\"].versions|keys|.[]" | tail -n1)
+        if test $logger = "debug"
+            logger 3 "build_date -> $latest"
+        end
+        set path (echo $image | jq -r ".[\"$target\"].versions|.[\"$latest\"].items |.[\"root.tar.xz\"].path")
+        if test $logger = "debug"
+            logger 3 "download_path -> $path"
+        end
+        aria2c -x16 -s16 -k1M -d ./built -o $os-$release-$arch-$variant $mirror/lxc-images/$path
+        echo "$os-$release-$arch-$variant $(ls -sh built/$os-$release-$arch-$variant | awk -F' ' '{print $1}')" >>built/available
+    end
+end
+
+function init
+    if test -d built
+    else
+        mkdir built
+    end
+end
+
+echo Build_Time_UTC=2022-07-13_03:38:35
+set -lx prefix "[steal-lxc-image]"
+set -lx mirror "https://mirrors.bfsu.edu.cn"
+set -lx logger "info"
+argparse -i -n $prefix 'm/mirror=' 'l/logger=' -- $argv
+if set -q _flag_mirror
+    set mirror $_flag_mirror
+end
+if set -q _flag_logger
+    set logger $_flag_logger
+end
+switch $argv[1]
+case steal
+    steal
+case '*'
+    help_echo
+end
